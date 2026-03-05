@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>備品 在庫リスト（ダッシュボード）</title>
+  <title>備品 在庫リスト（最小構成）</title>
 
   <!-- PWA -->
   <meta name="theme-color" content="#0b1934" />
@@ -75,7 +75,8 @@
     .chip{padding:6px 10px;border-radius:999px;background:rgba(233,240,255,.10);border:1px solid var(--line);font-size:12px;color:var(--muted)}
     .card .bd{padding:14px 16px}
 
-    .kpis{display:grid;grid-template-columns:1fr 1fr; gap:12px}
+    /* Dashboard: vertical stack */
+    .kpis{display:flex; flex-direction:column; gap:12px}
     .kpi{
       padding:12px 12px;border-radius:16px;
       border:1px solid var(--line); background:rgba(233,240,255,.04)
@@ -95,7 +96,7 @@
     }
     input::placeholder{color:rgba(233,240,255,.45)}
     .tableWrap{overflow:auto}
-    table{width:100%; border-collapse:separate; border-spacing:0 10px; min-width:1100px}
+    table{width:100%; border-collapse:separate; border-spacing:0 10px; min-width:980px}
     th{font-size:12px;color:var(--muted);font-weight:700;text-align:left;padding:0 10px}
     td{
       padding:10px 10px; background:rgba(233,240,255,.04);
@@ -109,9 +110,9 @@
       padding:6px 10px;border-radius:999px;border:1px solid var(--line);
       font-size:12px
     }
-    .dot{width:8px;height:8px;border-radius:99px;background:rgb(45,212,191)}
-    .pill.warn .dot{background:rgb(251,191,36)}
-    .pill.bad .dot{background:rgb(251,113,133)}
+    .dot{width:8px;height:8px;border-radius:99px;background:var(--ok)}
+    .pill.warn .dot{background:var(--warn)}
+    .pill.bad .dot{background:var(--bad)}
     .right{ text-align:right }
     .small{font-size:11px;color:var(--muted)}
     .actions{display:flex;gap:8px;flex-wrap:wrap}
@@ -137,7 +138,7 @@
   <div class="badge">備</div>
   <div class="title">
     <h1>備品 在庫リスト</h1>
-    <div class="sub">カード＋アラート＋検索 / ローカル保存（LocalStorage）</div>
+    <div class="sub">最小構成（単価/金額/最終出庫なし）</div>
   </div>
   <div class="spacer"></div>
   <div class="btns">
@@ -171,11 +172,6 @@
           <div class="label">注意（黄）</div>
           <div class="val" id="kpiWarn">0 <span class="tag warn">安全在庫</span></div>
           <div class="hint">現在庫 ≤ 安全在庫</div>
-        </div>
-        <div class="kpi">
-          <div class="label">在庫金額（任意）</div>
-          <div class="val" id="kpiValue">—</div>
-          <div class="hint">単価×現在庫の合計</div>
         </div>
       </div>
 
@@ -224,10 +220,7 @@
               <th class="right">発注点</th>
               <th>単位</th>
               <th>仕入先</th>
-              <th class="right">単価</th>
-              <th class="right">金額</th>
               <th>最終入庫</th>
-              <th>最終出庫</th>
               <th>操作</th>
             </tr>
           </thead>
@@ -241,7 +234,7 @@
 <dialog id="dlg">
   <div class="modalHd">
     <strong id="dlgTitle">備品 追加/編集</strong>
-    <span class="chip">在庫・安全・発注点で色が変わります</span>
+    <span class="chip">必須：管理ID / 品名</span>
   </div>
   <div class="modalBd">
     <div class="grid">
@@ -255,9 +248,7 @@
       <div class="row"><label>安全在庫</label><input id="f_safe" type="number" step="1" /></div>
       <div class="row"><label>発注点</label><input id="f_reorder" type="number" step="1" /></div>
       <div class="row"><label>仕入先</label><input id="f_sup" placeholder="例：○○商事" /></div>
-      <div class="row"><label>単価（任意）</label><input id="f_price" type="number" step="0.01" /></div>
       <div class="row"><label>最終入庫日</label><input id="f_in" type="date" /></div>
-      <div class="row"><label>最終出庫日</label><input id="f_out" type="date" /></div>
       <div class="row" style="grid-column:1/-1"><label>備考</label><input id="f_note" placeholder="例：代替品あり、月末にまとめ買い" /></div>
     </div>
   </div>
@@ -270,6 +261,7 @@
 
 <script>
   const KEY = "bihin_stock_v1";
+
   let data = [];
   let editingIndex = -1;
 
@@ -277,9 +269,9 @@
 
   function sample(){
     return [
-      {id:"SUP-0001", name:"ニトリル手袋", cat:"保護具", spec:"M / 青", place:"倉庫A 棚1", unit:"箱", stock:6, safe:4, reorder:3, sup:"○○商事", price:980, in:"2026-03-01", out:"2026-03-04", note:"現場用"},
-      {id:"SUP-0002", name:"コピー用紙", cat:"事務", spec:"A4 500枚", place:"事務所 収納2", unit:"冊", stock:2, safe:3, reorder:2, sup:"△△オフィス", price:420, in:"2026-02-20", out:"2026-03-02", note:"月初に補充"},
-      {id:"SUP-0003", name:"パーツクリーナー", cat:"清掃", spec:"840ml", place:"工場B", unit:"本", stock:8, safe:5, reorder:4, sup:"□□工具", price:520, in:"2026-02-25", out:"2026-03-03", note:"冬は使用増"}
+      {id:"SUP-0001", name:"ニトリル手袋", cat:"保護具", spec:"M / 青", place:"倉庫A 棚1", unit:"箱", stock:6, safe:4, reorder:3, sup:"○○商事", in:"2026-03-01", note:"現場用"},
+      {id:"SUP-0002", name:"コピー用紙", cat:"事務", spec:"A4 500枚", place:"事務所 収納2", unit:"冊", stock:2, safe:3, reorder:2, sup:"△△オフィス", in:"2026-02-20", note:"月初に補充"},
+      {id:"SUP-0003", name:"パーツクリーナー", cat:"清掃", spec:"840ml", place:"工場B", unit:"本", stock:8, safe:5, reorder:4, sup:"□□工具", in:"2026-02-25", note:"冬は使用増"}
     ];
   }
 
@@ -301,11 +293,6 @@
     if(s <= r) return "bad";
     if(s <= safe) return "warn";
     return "ok";
-  }
-
-  function fmtYen(n){
-    if(n==null || n==="" || isNaN(n)) return "—";
-    return Number(n).toLocaleString("ja-JP");
   }
 
   function rebuildCats(){
@@ -345,20 +332,14 @@
     const total = data.length;
     const bad = data.filter(d=>statusOf(d)==="bad").length;
     const warn = data.filter(d=>statusOf(d)==="warn").length;
-    const value = data.reduce((sum,d)=>{
-      const p = Number(d.price||0), s = Number(d.stock||0);
-      return sum + (p*s);
-    },0);
 
     $("kpiTotal").textContent = total.toLocaleString("ja-JP");
     $("kpiBad").firstChild.nodeValue = `${bad.toLocaleString("ja-JP")} `;
     $("kpiWarn").firstChild.nodeValue = `${warn.toLocaleString("ja-JP")} `;
-    $("kpiValue").textContent = value>0 ? `${fmtYen(value)} 円` : "—";
 
     const tbody = $("tbody");
     tbody.innerHTML = rows.map(it=>{
       const st = statusOf(it);
-      const money = (Number(it.price||0) * Number(it.stock||0));
       const pill = st==="bad" ? `<span class="pill bad"><span class="dot"></span>要発注</span>`
                  : st==="warn"? `<span class="pill warn"><span class="dot"></span>注意</span>`
                  : `<span class="pill ok"><span class="dot"></span>OK</span>`;
@@ -375,10 +356,7 @@
           <td class="right">${num(it.reorder)}</td>
           <td>${esc(it.unit||"")}</td>
           <td>${esc(it.sup||"")}</td>
-          <td class="right">${it.price? fmtYen(it.price):"—"}</td>
-          <td class="right">${money? fmtYen(money):"—"}</td>
           <td class="mono">${esc(it.in||"")}</td>
-          <td class="mono">${esc(it.out||"")}</td>
           <td><div class="actions">
             <button class="linkbtn" onclick="editItem('${escAttr(it.id||"")}')">編集</button>
           </div></td>
@@ -415,7 +393,7 @@
   function closeDlg(){ $("dlg").close(); }
 
   function clearForm(){
-    ["f_id","f_name","f_cat","f_spec","f_place","f_unit","f_stock","f_safe","f_reorder","f_sup","f_price","f_in","f_out","f_note"]
+    ["f_id","f_name","f_cat","f_spec","f_place","f_unit","f_stock","f_safe","f_reorder","f_sup","f_in","f_note"]
       .forEach(id=>$(id).value="");
   }
 
@@ -430,9 +408,7 @@
     $("f_safe").value = it.safe ?? "";
     $("f_reorder").value = it.reorder ?? "";
     $("f_sup").value = it.sup||"";
-    $("f_price").value = it.price ?? "";
     $("f_in").value = it.in||"";
-    $("f_out").value = it.out||"";
     $("f_note").value = it.note||"";
   }
 
@@ -457,9 +433,7 @@
       safe: $("f_safe").value==="" ? 0 : Number($("f_safe").value),
       reorder: $("f_reorder").value==="" ? 0 : Number($("f_reorder").value),
       sup: $("f_sup").value.trim(),
-      price: $("f_price").value==="" ? "" : Number($("f_price").value),
       in: $("f_in").value,
-      out: $("f_out").value,
       note: $("f_note").value.trim()
     };
     if(!it.id || !it.name) throw new Error("管理IDと品名は必須です");
@@ -467,8 +441,8 @@
   }
 
   function toCSV(){
-    const cols = ["id","name","cat","spec","place","unit","stock","safe","reorder","sup","price","in","out","note"];
-    const header = ["管理ID","品名","カテゴリ","規格","保管場所","単位","現在庫","安全在庫","発注点","仕入先","単価","最終入庫日","最終出庫日","備考"];
+    const cols = ["id","name","cat","spec","place","unit","stock","safe","reorder","sup","in","note"];
+    const header = ["管理ID","品名","カテゴリ","規格","保管場所","単位","現在庫","安全在庫","発注点","仕入先","最終入庫日","備考"];
     const lines = [header.join(",")].concat(
       data.map(d=>cols.map(k=>{
         const v = d[k] ?? "";
