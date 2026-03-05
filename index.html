@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>備品 在庫リスト（最小構成）</title>
+  <title>備品 在庫リスト（最小＋切替）</title>
 
   <!-- PWA -->
   <meta name="theme-color" content="#0b1934" />
@@ -55,6 +55,7 @@
     .green{background:rgba(34,197,94,.16); border-color:rgba(34,197,94,.30)}
     .purple{background:rgba(168,85,247,.14); border-color:rgba(168,85,247,.28)}
     .danger{background:rgba(251,113,133,.14); border-color:rgba(251,113,133,.28)}
+    .toggleOn{background:rgba(233,240,255,.12);}
 
     .wrap{display:grid; grid-template-columns: 360px 1fr; gap:16px; padding:16px; align-items:start}
     @media (max-width: 1100px){ .wrap{grid-template-columns: 1fr} }
@@ -88,7 +89,7 @@
     .tag.warn{color:var(--warn);border-color:rgba(251,191,36,.35);background:rgba(251,191,36,.08)}
     .tag.bad{color:var(--bad);border-color:rgba(251,113,133,.35);background:rgba(251,113,133,.08)}
 
-    .filters{display:flex;gap:10px;flex-wrap:wrap}
+    .filters{display:flex;gap:10px;flex-wrap:wrap; align-items:center}
     input, select{
       background:rgba(233,240,255,.06); color:var(--text);
       border:1px solid var(--line); border-radius:14px;
@@ -96,7 +97,7 @@
     }
     input::placeholder{color:rgba(233,240,255,.45)}
     .tableWrap{overflow:auto}
-    table{width:100%; border-collapse:separate; border-spacing:0 10px; min-width:980px}
+    table{width:100%; border-collapse:separate; border-spacing:0 10px; min-width:1040px}
     th{font-size:12px;color:var(--muted);font-weight:700;text-align:left;padding:0 10px}
     td{
       padding:10px 10px; background:rgba(233,240,255,.04);
@@ -118,6 +119,10 @@
     .actions{display:flex;gap:8px;flex-wrap:wrap}
     .linkbtn{padding:8px 10px;border-radius:12px}
 
+    /* column toggle */
+    .col-extra{display:none;}
+    body.showExtra .col-extra{display:table-cell;}
+
     dialog{
       border:none; border-radius:18px; padding:0; width:min(820px, 92vw);
       background: linear-gradient(180deg, rgba(11,25,52,.98), rgba(9,22,46,.98));
@@ -138,11 +143,12 @@
   <div class="badge">備</div>
   <div class="title">
     <h1>備品 在庫リスト</h1>
-    <div class="sub">最小構成（単価/金額/最終出庫なし）</div>
+    <div class="sub">基本：状態/品名/現在/安全/発注点　｜　詳細は切替で表示</div>
   </div>
   <div class="spacer"></div>
   <div class="btns">
     <button class="primary" id="btnAdd">＋ 追加</button>
+    <button id="btnView" title="詳細列の表示/非表示">表示：最小</button>
     <button class="green" id="btnCSV">CSV出力</button>
     <button class="purple" id="btnSave">保存</button>
     <button id="btnPrint">印刷</button>
@@ -180,7 +186,7 @@
         <ul class="small" style="line-height:1.6;margin:8px 0 0 18px;">
           <li>発注点＝これ以下なら発注（赤）</li>
           <li>安全在庫＝これ以下なら注意（黄）</li>
-          <li>「保存」でブラウザに保持（同じブラウザで復元）</li>
+          <li>管理IDは 001〜（空欄なら自動採番）</li>
         </ul>
       </div>
     </div>
@@ -193,16 +199,13 @@
     </div>
     <div class="bd">
       <div class="filters">
-        <input id="q" placeholder="検索：品名 / 型番 / 場所 / 仕入先…" />
-        <select id="cat">
-          <option value="">カテゴリ：すべて</option>
-        </select>
+        <input id="q" placeholder="検索：品名 / 管理ID / 場所 / 仕入先…" />
         <select id="sort">
-          <option value="status">並び：状態（赤→黄→緑）</option>
-          <option value="stockAsc">在庫が少ない順</option>
-          <option value="name">品名順</option>
-          <option value="place">場所順</option>
+          <option value="idAsc">並び：管理ID順（001→）</option>
+          <option value="status">並び：赤→黄→緑</option>
+          <option value="name">並び：品名 あいうえお順</option>
         </select>
+        <span class="chip">列：基本＋切替</span>
       </div>
 
       <div class="tableWrap" style="margin-top:10px">
@@ -210,18 +213,18 @@
           <thead>
             <tr>
               <th>状態</th>
-              <th>管理ID</th>
+              <th class="col-extra">管理ID</th>
               <th>品名</th>
-              <th>カテゴリ</th>
-              <th>規格</th>
-              <th>保管場所</th>
+              <th class="col-extra">カテゴリ</th>
+              <th class="col-extra">規格</th>
+              <th class="col-extra">保管場所</th>
               <th class="right">現在庫</th>
               <th class="right">安全</th>
               <th class="right">発注点</th>
-              <th>単位</th>
-              <th>仕入先</th>
-              <th>最終入庫</th>
-              <th>操作</th>
+              <th class="col-extra">単位</th>
+              <th class="col-extra">仕入先</th>
+              <th class="col-extra">最終入庫</th>
+              <th class="col-extra">操作</th>
             </tr>
           </thead>
           <tbody id="tbody"></tbody>
@@ -234,21 +237,28 @@
 <dialog id="dlg">
   <div class="modalHd">
     <strong id="dlgTitle">備品 追加/編集</strong>
-    <span class="chip">必須：管理ID / 品名</span>
+    <span class="chip">必須：品名　｜　管理IDは001〜</span>
   </div>
   <div class="modalBd">
     <div class="grid">
-      <div class="row"><label>管理ID</label><input id="f_id" placeholder="例：SUP-0001" /></div>
-      <div class="row"><label>品名</label><input id="f_name" placeholder="例：ニトリル手袋" /></div>
-      <div class="row"><label>カテゴリ</label><input id="f_cat" placeholder="例：保護具" /></div>
-      <div class="row"><label>規格/型番</label><input id="f_spec" placeholder="例：Mサイズ / 青" /></div>
-      <div class="row"><label>保管場所</label><input id="f_place" placeholder="例：倉庫A 棚3" /></div>
-      <div class="row"><label>単位</label><input id="f_unit" placeholder="例：箱" /></div>
+      <div class="row">
+        <label>管理ID（001〜 / 空欄なら自動採番）</label>
+        <input id="f_id" inputmode="numeric" placeholder="例：001" />
+      </div>
+      <div class="row"><label>品名（必須）</label><input id="f_name" placeholder="例：ニトリル手袋" /></div>
+
+      <div class="row col-extra"><label>カテゴリ</label><input id="f_cat" placeholder="例：保護具" /></div>
+      <div class="row col-extra"><label>規格/型番</label><input id="f_spec" placeholder="例：Mサイズ / 青" /></div>
+      <div class="row col-extra"><label>保管場所</label><input id="f_place" placeholder="例：倉庫A 棚3" /></div>
+      <div class="row col-extra"><label>単位</label><input id="f_unit" placeholder="例：箱" /></div>
+
       <div class="row"><label>現在庫</label><input id="f_stock" type="number" step="1" /></div>
       <div class="row"><label>安全在庫</label><input id="f_safe" type="number" step="1" /></div>
       <div class="row"><label>発注点</label><input id="f_reorder" type="number" step="1" /></div>
-      <div class="row"><label>仕入先</label><input id="f_sup" placeholder="例：○○商事" /></div>
-      <div class="row"><label>最終入庫日</label><input id="f_in" type="date" /></div>
+
+      <div class="row col-extra"><label>仕入先</label><input id="f_sup" placeholder="例：○○商事" /></div>
+      <div class="row col-extra"><label>最終入庫日</label><input id="f_in" type="date" /></div>
+
       <div class="row" style="grid-column:1/-1"><label>備考</label><input id="f_note" placeholder="例：代替品あり、月末にまとめ買い" /></div>
     </div>
   </div>
@@ -261,7 +271,7 @@
 
 <script>
   const KEY = "bihin_stock_v1";
-
+  const VIEW_KEY = "bihin_stock_view_extra";
   let data = [];
   let editingIndex = -1;
 
@@ -269,9 +279,9 @@
 
   function sample(){
     return [
-      {id:"SUP-0001", name:"ニトリル手袋", cat:"保護具", spec:"M / 青", place:"倉庫A 棚1", unit:"箱", stock:6, safe:4, reorder:3, sup:"○○商事", in:"2026-03-01", note:"現場用"},
-      {id:"SUP-0002", name:"コピー用紙", cat:"事務", spec:"A4 500枚", place:"事務所 収納2", unit:"冊", stock:2, safe:3, reorder:2, sup:"△△オフィス", in:"2026-02-20", note:"月初に補充"},
-      {id:"SUP-0003", name:"パーツクリーナー", cat:"清掃", spec:"840ml", place:"工場B", unit:"本", stock:8, safe:5, reorder:4, sup:"□□工具", in:"2026-02-25", note:"冬は使用増"}
+      {id:"001", name:"ニトリル手袋", cat:"保護具", spec:"M / 青", place:"倉庫A 棚1", unit:"箱", stock:6, safe:4, reorder:3, sup:"○○商事", in:"2026-03-01", note:"現場用"},
+      {id:"002", name:"コピー用紙", cat:"事務", spec:"A4 500枚", place:"事務所 収納2", unit:"冊", stock:2, safe:3, reorder:2, sup:"△△オフィス", in:"2026-02-20", note:"月初に補充"},
+      {id:"003", name:"パーツクリーナー", cat:"清掃", spec:"840ml", place:"工場B", unit:"本", stock:8, safe:5, reorder:4, sup:"□□工具", in:"2026-02-25", note:"冬は使用増"}
     ];
   }
 
@@ -295,37 +305,43 @@
     return "ok";
   }
 
-  function rebuildCats(){
-    const set = new Set(data.map(d=>d.cat).filter(Boolean));
-    const sel = $("cat");
-    const cur = sel.value;
-    sel.innerHTML = `<option value="">カテゴリ：すべて</option>` +
-      [...set].sort().map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join("");
-    sel.value = cur;
+  function normalizeId(v){
+    const digits = String(v ?? "").replace(/\D/g, "");
+    if(!digits) return "";
+    return digits.padStart(3, "0");
+  }
+
+  function nextId(){
+    let max = 0;
+    for(const d of data){
+      const n = parseInt(String(d.id||"").replace(/\D/g,"") || "0", 10);
+      if(n>max) max = n;
+    }
+    return String(max+1).padStart(3,"0");
   }
 
   function render(){
     $("nowInfo").textContent = `更新：${new Date().toLocaleString("ja-JP")}`;
-    rebuildCats();
 
     const q = $("q").value.trim().toLowerCase();
-    const cat = $("cat").value;
     const sort = $("sort").value;
 
     let rows = data.filter(it=>{
-      if(cat && it.cat !== cat) return false;
       if(!q) return true;
-      const hay = `${it.id} ${it.name} ${it.cat} ${it.spec} ${it.place} ${it.sup} ${it.note}`.toLowerCase();
+      const hay = `${it.id} ${it.name} ${it.cat} ${it.spec} ${it.place} ${it.unit} ${it.sup} ${it.in} ${it.note}`.toLowerCase();
       return hay.includes(q);
     });
 
     rows.sort((a,b)=>{
+      if(sort==="idAsc"){
+        const ai = parseInt(String(a.id||"0").replace(/\D/g,"")||"0",10);
+        const bi = parseInt(String(b.id||"0").replace(/\D/g,"")||"0",10);
+        return ai - bi;
+      }
       if(sort==="status"){
         const rank = {bad:0,warn:1,ok:2};
         return rank[statusOf(a)] - rank[statusOf(b)] || (a.name||"").localeCompare(b.name||"","ja");
       }
-      if(sort==="stockAsc") return Number(a.stock||0) - Number(b.stock||0);
-      if(sort==="place") return (a.place||"").localeCompare(b.place||"","ja");
       return (a.name||"").localeCompare(b.name||"","ja");
     });
 
@@ -346,18 +362,18 @@
       return `
         <tr>
           <td>${pill}</td>
-          <td class="mono">${esc(it.id||"")}</td>
+          <td class="mono col-extra">${esc(it.id||"")}</td>
           <td><strong>${esc(it.name||"")}</strong><div class="small">${esc(it.note||"")}</div></td>
-          <td>${esc(it.cat||"")}</td>
-          <td>${esc(it.spec||"")}</td>
-          <td>${esc(it.place||"")}</td>
+          <td class="col-extra">${esc(it.cat||"")}</td>
+          <td class="col-extra">${esc(it.spec||"")}</td>
+          <td class="col-extra">${esc(it.place||"")}</td>
           <td class="right"><strong>${num(it.stock)}</strong></td>
           <td class="right">${num(it.safe)}</td>
           <td class="right">${num(it.reorder)}</td>
-          <td>${esc(it.unit||"")}</td>
-          <td>${esc(it.sup||"")}</td>
-          <td class="mono">${esc(it.in||"")}</td>
-          <td><div class="actions">
+          <td class="col-extra">${esc(it.unit||"")}</td>
+          <td class="col-extra">${esc(it.sup||"")}</td>
+          <td class="mono col-extra">${esc(it.in||"")}</td>
+          <td class="col-extra"><div class="actions">
             <button class="linkbtn" onclick="editItem('${escAttr(it.id||"")}')">編集</button>
           </div></td>
         </tr>
@@ -413,7 +429,7 @@
   }
 
   window.editItem = (id)=>{
-    const idx = data.findIndex(d=>d.id===id);
+    const idx = data.findIndex(d=>String(d.id)===String(id));
     if(idx<0) return;
     editingIndex = idx;
     clearForm(); fillForm(data[idx]);
@@ -422,8 +438,10 @@
   };
 
   function collectForm(){
+    let id = normalizeId($("f_id").value);
+    if(!id) id = nextId(); // auto assign
     const it = {
-      id: $("f_id").value.trim(),
+      id,
       name: $("f_name").value.trim(),
       cat: $("f_cat").value.trim(),
       spec: $("f_spec").value.trim(),
@@ -436,7 +454,7 @@
       in: $("f_in").value,
       note: $("f_note").value.trim()
     };
-    if(!it.id || !it.name) throw new Error("管理IDと品名は必須です");
+    if(!it.name) throw new Error("品名は必須です");
     return it;
   }
 
@@ -459,18 +477,32 @@
     URL.revokeObjectURL(url);
   }
 
+  function setView(show){
+    document.body.classList.toggle("showExtra", show);
+    const btn = $("btnView");
+    btn.textContent = show ? "表示：詳細" : "表示：最小";
+    btn.classList.toggle("toggleOn", show);
+    localStorage.setItem(VIEW_KEY, show ? "1" : "0");
+  }
+
+  $("btnView").onclick = ()=>{
+    const show = !document.body.classList.contains("showExtra");
+    setView(show);
+  };
+
   $("btnAdd").onclick = ()=>{
     editingIndex = -1;
     clearForm();
     $("btnDel").style.display = "none";
+    $("f_id").value = nextId();
     openDlg("追加");
-    $("f_id").focus();
+    $("f_name").focus();
   };
   $("btnCancel").onclick = ()=> closeDlg();
   $("btnOk").onclick = ()=>{
     try{
       const it = collectForm();
-      const exists = data.some((d,i)=>d.id===it.id && i!==editingIndex);
+      const exists = data.some((d,i)=>String(d.id)===String(it.id) && i!==editingIndex);
       if(exists) return alert("同じ管理IDが既にあります");
       if(editingIndex>=0) data[editingIndex]=it;
       else data.push(it);
@@ -496,14 +528,19 @@
   $("btnCSV").onclick = toCSV;
   $("btnPrint").onclick = ()=> window.print();
 
-  ["q","cat","sort"].forEach(id=>$(id).addEventListener("input", render));
+  $("q").addEventListener("input", render);
+  $("sort").addEventListener("input", render);
+
+  $("f_id").addEventListener("blur", ()=>{ $("f_id").value = normalizeId($("f_id").value); });
+
   window.addEventListener("keydown", (e)=>{
     if(e.key==="Escape" && $("dlg").open) closeDlg();
   });
 
-  load(); render();
+  load();
+  setView(localStorage.getItem(VIEW_KEY)==="1");
+  render();
 
-  // Service Worker 登録（PWA/オフライン）
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("./sw.js");
   }
