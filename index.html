@@ -1,0 +1,538 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>備品 在庫リスト（ダッシュボード）</title>
+
+  <!-- PWA -->
+  <meta name="theme-color" content="#0b1934" />
+  <link rel="manifest" href="./manifest.json" />
+  <link rel="icon" href="./icon-192.png" />
+
+  <style>
+    :root{
+      --bg:#071021; --panel:#0b1934; --panel2:#09162e;
+      --line:rgba(255,255,255,.10);
+      --text:#e9f0ff; --muted:rgba(233,240,255,.70);
+      --ok:#2dd4bf; --warn:#fbbf24; --bad:#fb7185;
+      --shadow: 0 10px 30px rgba(0,0,0,.35);
+      --radius:18px;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace;
+      font-family: "Segoe UI","Meiryo",system-ui,sans-serif;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:radial-gradient(1200px 800px at 20% 0%, rgba(14,165,233,.18), transparent 60%),
+                      radial-gradient(900px 700px at 80% 20%, rgba(168,85,247,.14), transparent 55%),
+                      var(--bg);
+         color:var(--text);}
+    header{
+      position:sticky; top:0; z-index:10;
+      backdrop-filter: blur(10px);
+      background: linear-gradient(to bottom, rgba(7,16,33,.85), rgba(7,16,33,.55));
+      border-bottom:1px solid var(--line);
+      padding:14px 18px;
+      display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+    }
+    .badge{width:40px;height:40px;border-radius:14px;display:grid;place-items:center;
+      background: linear-gradient(135deg, rgba(14,165,233,.25), rgba(34,197,94,.18));
+      border:1px solid var(--line); box-shadow: var(--shadow); font-weight:800}
+    .title{display:flex;flex-direction:column;gap:2px}
+    .title h1{margin:0;font-size:18px;letter-spacing:.2px}
+    .title .sub{font-size:12px;color:var(--muted)}
+    .spacer{flex:1}
+    .btns{display:flex;gap:10px;flex-wrap:wrap}
+    button{
+      border:1px solid var(--line); color:var(--text);
+      background:rgba(233,240,255,.06);
+      padding:10px 14px; border-radius:14px;
+      cursor:pointer; box-shadow: 0 8px 20px rgba(0,0,0,.25);
+      transition:.15s transform, .15s background;
+      font-weight:650;
+    }
+    button:hover{transform: translateY(-1px); background:rgba(233,240,255,.10);}
+    .primary{background:rgba(14,165,233,.20); border-color:rgba(14,165,233,.35)}
+    .green{background:rgba(34,197,94,.16); border-color:rgba(34,197,94,.30)}
+    .purple{background:rgba(168,85,247,.14); border-color:rgba(168,85,247,.28)}
+    .danger{background:rgba(251,113,133,.14); border-color:rgba(251,113,133,.28)}
+
+    .wrap{display:grid; grid-template-columns: 360px 1fr; gap:16px; padding:16px; align-items:start}
+    @media (max-width: 1100px){ .wrap{grid-template-columns: 1fr} }
+
+    .card{
+      background: linear-gradient(180deg, rgba(11,25,52,.92), rgba(9,22,46,.92));
+      border:1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow:hidden;
+    }
+    .card .hd{
+      padding:14px 16px;
+      border-bottom:1px solid var(--line);
+      display:flex;align-items:center;gap:10px;flex-wrap:wrap
+    }
+    .card .hd h2{margin:0;font-size:14px}
+    .chip{padding:6px 10px;border-radius:999px;background:rgba(233,240,255,.10);border:1px solid var(--line);font-size:12px;color:var(--muted)}
+    .card .bd{padding:14px 16px}
+
+    .kpis{display:grid;grid-template-columns:1fr 1fr; gap:12px}
+    .kpi{
+      padding:12px 12px;border-radius:16px;
+      border:1px solid var(--line); background:rgba(233,240,255,.04)
+    }
+    .kpi .label{font-size:12px;color:var(--muted)}
+    .kpi .val{font-size:24px;font-weight:800;margin-top:4px}
+    .kpi .hint{font-size:11px;color:var(--muted);margin-top:2px}
+    .tag{display:inline-block;padding:4px 10px;border-radius:999px;border:1px solid var(--line);font-size:12px;margin-left:6px}
+    .tag.warn{color:var(--warn);border-color:rgba(251,191,36,.35);background:rgba(251,191,36,.08)}
+    .tag.bad{color:var(--bad);border-color:rgba(251,113,133,.35);background:rgba(251,113,133,.08)}
+
+    .filters{display:flex;gap:10px;flex-wrap:wrap}
+    input, select{
+      background:rgba(233,240,255,.06); color:var(--text);
+      border:1px solid var(--line); border-radius:14px;
+      padding:10px 12px; outline:none; min-width: 180px;
+    }
+    input::placeholder{color:rgba(233,240,255,.45)}
+    .tableWrap{overflow:auto}
+    table{width:100%; border-collapse:separate; border-spacing:0 10px; min-width:1100px}
+    th{font-size:12px;color:var(--muted);font-weight:700;text-align:left;padding:0 10px}
+    td{
+      padding:10px 10px; background:rgba(233,240,255,.04);
+      border-top:1px solid var(--line); border-bottom:1px solid var(--line);
+    }
+    tr td:first-child{border-left:1px solid var(--line); border-radius:14px 0 0 14px}
+    tr td:last-child{border-right:1px solid var(--line); border-radius:0 14px 14px 0}
+    .mono{font-family:var(--mono); font-size:12px; color:rgba(233,240,255,.78)}
+    .pill{
+      display:inline-flex;align-items:center;gap:6px;
+      padding:6px 10px;border-radius:999px;border:1px solid var(--line);
+      font-size:12px
+    }
+    .dot{width:8px;height:8px;border-radius:99px;background:rgb(45,212,191)}
+    .pill.warn .dot{background:rgb(251,191,36)}
+    .pill.bad .dot{background:rgb(251,113,133)}
+    .right{ text-align:right }
+    .small{font-size:11px;color:var(--muted)}
+    .actions{display:flex;gap:8px;flex-wrap:wrap}
+    .linkbtn{padding:8px 10px;border-radius:12px}
+
+    dialog{
+      border:none; border-radius:18px; padding:0; width:min(820px, 92vw);
+      background: linear-gradient(180deg, rgba(11,25,52,.98), rgba(9,22,46,.98));
+      color:var(--text); box-shadow: var(--shadow);
+    }
+    dialog::backdrop{background:rgba(0,0,0,.55)}
+    .modalHd{padding:14px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px}
+    .modalBd{padding:14px 16px}
+    .grid{display:grid;grid-template-columns:1fr 1fr; gap:12px}
+    @media (max-width: 800px){ .grid{grid-template-columns:1fr} }
+    .row{display:flex;flex-direction:column;gap:6px}
+    label{font-size:12px;color:var(--muted)}
+    .modalFt{padding:14px 16px;border-top:1px solid var(--line);display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap}
+  </style>
+</head>
+<body>
+<header>
+  <div class="badge">備</div>
+  <div class="title">
+    <h1>備品 在庫リスト</h1>
+    <div class="sub">カード＋アラート＋検索 / ローカル保存（LocalStorage）</div>
+  </div>
+  <div class="spacer"></div>
+  <div class="btns">
+    <button class="primary" id="btnAdd">＋ 追加</button>
+    <button class="green" id="btnCSV">CSV出力</button>
+    <button class="purple" id="btnSave">保存</button>
+    <button id="btnPrint">印刷</button>
+    <button class="danger" id="btnReset">初期化</button>
+  </div>
+</header>
+
+<div class="wrap">
+  <section class="card">
+    <div class="hd">
+      <h2>ダッシュボード</h2>
+      <span class="chip">赤＝要発注 / 黄＝注意 / 緑＝OK</span>
+    </div>
+    <div class="bd">
+      <div class="kpis">
+        <div class="kpi">
+          <div class="label">総アイテム数</div>
+          <div class="val" id="kpiTotal">0</div>
+          <div class="hint">管理IDの件数</div>
+        </div>
+        <div class="kpi">
+          <div class="label">要発注（赤）</div>
+          <div class="val" id="kpiBad">0 <span class="tag bad">発注点割れ</span></div>
+          <div class="hint">現在庫 ≤ 発注点</div>
+        </div>
+        <div class="kpi">
+          <div class="label">注意（黄）</div>
+          <div class="val" id="kpiWarn">0 <span class="tag warn">安全在庫</span></div>
+          <div class="hint">現在庫 ≤ 安全在庫</div>
+        </div>
+        <div class="kpi">
+          <div class="label">在庫金額（任意）</div>
+          <div class="val" id="kpiValue">—</div>
+          <div class="hint">単価×現在庫の合計</div>
+        </div>
+      </div>
+
+      <div style="margin-top:14px">
+        <div class="small">運用メモ</div>
+        <ul class="small" style="line-height:1.6;margin:8px 0 0 18px;">
+          <li>発注点＝これ以下なら発注（赤）</li>
+          <li>安全在庫＝これ以下なら注意（黄）</li>
+          <li>「保存」でブラウザに保持（同じブラウザで復元）</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="hd">
+      <h2>在庫一覧</h2>
+      <span class="chip" id="nowInfo">—</span>
+    </div>
+    <div class="bd">
+      <div class="filters">
+        <input id="q" placeholder="検索：品名 / 型番 / 場所 / 仕入先…" />
+        <select id="cat">
+          <option value="">カテゴリ：すべて</option>
+        </select>
+        <select id="sort">
+          <option value="status">並び：状態（赤→黄→緑）</option>
+          <option value="stockAsc">在庫が少ない順</option>
+          <option value="name">品名順</option>
+          <option value="place">場所順</option>
+        </select>
+      </div>
+
+      <div class="tableWrap" style="margin-top:10px">
+        <table>
+          <thead>
+            <tr>
+              <th>状態</th>
+              <th>管理ID</th>
+              <th>品名</th>
+              <th>カテゴリ</th>
+              <th>規格</th>
+              <th>保管場所</th>
+              <th class="right">現在庫</th>
+              <th class="right">安全</th>
+              <th class="right">発注点</th>
+              <th>単位</th>
+              <th>仕入先</th>
+              <th class="right">単価</th>
+              <th class="right">金額</th>
+              <th>最終入庫</th>
+              <th>最終出庫</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+</div>
+
+<dialog id="dlg">
+  <div class="modalHd">
+    <strong id="dlgTitle">備品 追加/編集</strong>
+    <span class="chip">在庫・安全・発注点で色が変わります</span>
+  </div>
+  <div class="modalBd">
+    <div class="grid">
+      <div class="row"><label>管理ID</label><input id="f_id" placeholder="例：SUP-0001" /></div>
+      <div class="row"><label>品名</label><input id="f_name" placeholder="例：ニトリル手袋" /></div>
+      <div class="row"><label>カテゴリ</label><input id="f_cat" placeholder="例：保護具" /></div>
+      <div class="row"><label>規格/型番</label><input id="f_spec" placeholder="例：Mサイズ / 青" /></div>
+      <div class="row"><label>保管場所</label><input id="f_place" placeholder="例：倉庫A 棚3" /></div>
+      <div class="row"><label>単位</label><input id="f_unit" placeholder="例：箱" /></div>
+      <div class="row"><label>現在庫</label><input id="f_stock" type="number" step="1" /></div>
+      <div class="row"><label>安全在庫</label><input id="f_safe" type="number" step="1" /></div>
+      <div class="row"><label>発注点</label><input id="f_reorder" type="number" step="1" /></div>
+      <div class="row"><label>仕入先</label><input id="f_sup" placeholder="例：○○商事" /></div>
+      <div class="row"><label>単価（任意）</label><input id="f_price" type="number" step="0.01" /></div>
+      <div class="row"><label>最終入庫日</label><input id="f_in" type="date" /></div>
+      <div class="row"><label>最終出庫日</label><input id="f_out" type="date" /></div>
+      <div class="row" style="grid-column:1/-1"><label>備考</label><input id="f_note" placeholder="例：代替品あり、月末にまとめ買い" /></div>
+    </div>
+  </div>
+  <div class="modalFt">
+    <button id="btnDel" class="danger">削除</button>
+    <button id="btnCancel">キャンセル</button>
+    <button id="btnOk" class="primary">OK</button>
+  </div>
+</dialog>
+
+<script>
+  const KEY = "bihin_stock_v1";
+  let data = [];
+  let editingIndex = -1;
+
+  const $ = (id)=>document.getElementById(id);
+
+  function sample(){
+    return [
+      {id:"SUP-0001", name:"ニトリル手袋", cat:"保護具", spec:"M / 青", place:"倉庫A 棚1", unit:"箱", stock:6, safe:4, reorder:3, sup:"○○商事", price:980, in:"2026-03-01", out:"2026-03-04", note:"現場用"},
+      {id:"SUP-0002", name:"コピー用紙", cat:"事務", spec:"A4 500枚", place:"事務所 収納2", unit:"冊", stock:2, safe:3, reorder:2, sup:"△△オフィス", price:420, in:"2026-02-20", out:"2026-03-02", note:"月初に補充"},
+      {id:"SUP-0003", name:"パーツクリーナー", cat:"清掃", spec:"840ml", place:"工場B", unit:"本", stock:8, safe:5, reorder:4, sup:"□□工具", price:520, in:"2026-02-25", out:"2026-03-03", note:"冬は使用増"}
+    ];
+  }
+
+  function load(){
+    const raw = localStorage.getItem(KEY);
+    if(raw){
+      try{ data = JSON.parse(raw) || []; }catch{ data = []; }
+    }else{
+      data = sample();
+    }
+  }
+  function save(){
+    localStorage.setItem(KEY, JSON.stringify(data));
+    toast("保存しました");
+  }
+
+  function statusOf(it){
+    const s = Number(it.stock||0), safe = Number(it.safe||0), r = Number(it.reorder||0);
+    if(s <= r) return "bad";
+    if(s <= safe) return "warn";
+    return "ok";
+  }
+
+  function fmtYen(n){
+    if(n==null || n==="" || isNaN(n)) return "—";
+    return Number(n).toLocaleString("ja-JP");
+  }
+
+  function rebuildCats(){
+    const set = new Set(data.map(d=>d.cat).filter(Boolean));
+    const sel = $("cat");
+    const cur = sel.value;
+    sel.innerHTML = `<option value="">カテゴリ：すべて</option>` +
+      [...set].sort().map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join("");
+    sel.value = cur;
+  }
+
+  function render(){
+    $("nowInfo").textContent = `更新：${new Date().toLocaleString("ja-JP")}`;
+    rebuildCats();
+
+    const q = $("q").value.trim().toLowerCase();
+    const cat = $("cat").value;
+    const sort = $("sort").value;
+
+    let rows = data.filter(it=>{
+      if(cat && it.cat !== cat) return false;
+      if(!q) return true;
+      const hay = `${it.id} ${it.name} ${it.cat} ${it.spec} ${it.place} ${it.sup} ${it.note}`.toLowerCase();
+      return hay.includes(q);
+    });
+
+    rows.sort((a,b)=>{
+      if(sort==="status"){
+        const rank = {bad:0,warn:1,ok:2};
+        return rank[statusOf(a)] - rank[statusOf(b)] || (a.name||"").localeCompare(b.name||"","ja");
+      }
+      if(sort==="stockAsc") return Number(a.stock||0) - Number(b.stock||0);
+      if(sort==="place") return (a.place||"").localeCompare(b.place||"","ja");
+      return (a.name||"").localeCompare(b.name||"","ja");
+    });
+
+    const total = data.length;
+    const bad = data.filter(d=>statusOf(d)==="bad").length;
+    const warn = data.filter(d=>statusOf(d)==="warn").length;
+    const value = data.reduce((sum,d)=>{
+      const p = Number(d.price||0), s = Number(d.stock||0);
+      return sum + (p*s);
+    },0);
+
+    $("kpiTotal").textContent = total.toLocaleString("ja-JP");
+    $("kpiBad").firstChild.nodeValue = `${bad.toLocaleString("ja-JP")} `;
+    $("kpiWarn").firstChild.nodeValue = `${warn.toLocaleString("ja-JP")} `;
+    $("kpiValue").textContent = value>0 ? `${fmtYen(value)} 円` : "—";
+
+    const tbody = $("tbody");
+    tbody.innerHTML = rows.map(it=>{
+      const st = statusOf(it);
+      const money = (Number(it.price||0) * Number(it.stock||0));
+      const pill = st==="bad" ? `<span class="pill bad"><span class="dot"></span>要発注</span>`
+                 : st==="warn"? `<span class="pill warn"><span class="dot"></span>注意</span>`
+                 : `<span class="pill ok"><span class="dot"></span>OK</span>`;
+      return `
+        <tr>
+          <td>${pill}</td>
+          <td class="mono">${esc(it.id||"")}</td>
+          <td><strong>${esc(it.name||"")}</strong><div class="small">${esc(it.note||"")}</div></td>
+          <td>${esc(it.cat||"")}</td>
+          <td>${esc(it.spec||"")}</td>
+          <td>${esc(it.place||"")}</td>
+          <td class="right"><strong>${num(it.stock)}</strong></td>
+          <td class="right">${num(it.safe)}</td>
+          <td class="right">${num(it.reorder)}</td>
+          <td>${esc(it.unit||"")}</td>
+          <td>${esc(it.sup||"")}</td>
+          <td class="right">${it.price? fmtYen(it.price):"—"}</td>
+          <td class="right">${money? fmtYen(money):"—"}</td>
+          <td class="mono">${esc(it.in||"")}</td>
+          <td class="mono">${esc(it.out||"")}</td>
+          <td><div class="actions">
+            <button class="linkbtn" onclick="editItem('${escAttr(it.id||"")}')">編集</button>
+          </div></td>
+        </tr>
+      `;
+    }).join("");
+  }
+
+  function num(v){
+    if(v==null || v==="") return "—";
+    return Number(v).toLocaleString("ja-JP");
+  }
+
+  function esc(s){ return String(s??"").replace(/[&<>"']/g, m=>({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[m])); }
+  function escAttr(s){ return String(s??"").replace(/"/g,"&quot;"); }
+
+  function toast(msg){
+    const t = document.createElement("div");
+    t.textContent = msg;
+    Object.assign(t.style,{
+      position:"fixed", right:"16px", bottom:"16px", padding:"10px 12px",
+      background:"rgba(233,240,255,.10)", border:"1px solid rgba(255,255,255,.16)",
+      borderRadius:"14px", boxShadow:"0 10px 30px rgba(0,0,0,.35)", zIndex:9999
+    });
+    document.body.appendChild(t);
+    setTimeout(()=>{ t.style.opacity="0"; t.style.transition=".25s"; }, 1200);
+    setTimeout(()=>t.remove(), 1600);
+  }
+
+  function openDlg(title){
+    $("dlgTitle").textContent = title;
+    $("dlg").showModal();
+  }
+  function closeDlg(){ $("dlg").close(); }
+
+  function clearForm(){
+    ["f_id","f_name","f_cat","f_spec","f_place","f_unit","f_stock","f_safe","f_reorder","f_sup","f_price","f_in","f_out","f_note"]
+      .forEach(id=>$(id).value="");
+  }
+
+  function fillForm(it){
+    $("f_id").value = it.id||"";
+    $("f_name").value = it.name||"";
+    $("f_cat").value = it.cat||"";
+    $("f_spec").value = it.spec||"";
+    $("f_place").value = it.place||"";
+    $("f_unit").value = it.unit||"";
+    $("f_stock").value = it.stock ?? "";
+    $("f_safe").value = it.safe ?? "";
+    $("f_reorder").value = it.reorder ?? "";
+    $("f_sup").value = it.sup||"";
+    $("f_price").value = it.price ?? "";
+    $("f_in").value = it.in||"";
+    $("f_out").value = it.out||"";
+    $("f_note").value = it.note||"";
+  }
+
+  window.editItem = (id)=>{
+    const idx = data.findIndex(d=>d.id===id);
+    if(idx<0) return;
+    editingIndex = idx;
+    clearForm(); fillForm(data[idx]);
+    $("btnDel").style.display = "inline-flex";
+    openDlg(`編集：${id}`);
+  };
+
+  function collectForm(){
+    const it = {
+      id: $("f_id").value.trim(),
+      name: $("f_name").value.trim(),
+      cat: $("f_cat").value.trim(),
+      spec: $("f_spec").value.trim(),
+      place: $("f_place").value.trim(),
+      unit: $("f_unit").value.trim(),
+      stock: $("f_stock").value==="" ? 0 : Number($("f_stock").value),
+      safe: $("f_safe").value==="" ? 0 : Number($("f_safe").value),
+      reorder: $("f_reorder").value==="" ? 0 : Number($("f_reorder").value),
+      sup: $("f_sup").value.trim(),
+      price: $("f_price").value==="" ? "" : Number($("f_price").value),
+      in: $("f_in").value,
+      out: $("f_out").value,
+      note: $("f_note").value.trim()
+    };
+    if(!it.id || !it.name) throw new Error("管理IDと品名は必須です");
+    return it;
+  }
+
+  function toCSV(){
+    const cols = ["id","name","cat","spec","place","unit","stock","safe","reorder","sup","price","in","out","note"];
+    const header = ["管理ID","品名","カテゴリ","規格","保管場所","単位","現在庫","安全在庫","発注点","仕入先","単価","最終入庫日","最終出庫日","備考"];
+    const lines = [header.join(",")].concat(
+      data.map(d=>cols.map(k=>{
+        const v = d[k] ?? "";
+        const s = String(v).replace(/"/g,'""');
+        return `"${s}"`;
+      }).join(","))
+    ).join("\n");
+
+    const blob = new Blob([lines], {type:"text/csv;charset=utf-8"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = "bihin_zaiko.csv";
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  $("btnAdd").onclick = ()=>{
+    editingIndex = -1;
+    clearForm();
+    $("btnDel").style.display = "none";
+    openDlg("追加");
+    $("f_id").focus();
+  };
+  $("btnCancel").onclick = ()=> closeDlg();
+  $("btnOk").onclick = ()=>{
+    try{
+      const it = collectForm();
+      const exists = data.some((d,i)=>d.id===it.id && i!==editingIndex);
+      if(exists) return alert("同じ管理IDが既にあります");
+      if(editingIndex>=0) data[editingIndex]=it;
+      else data.push(it);
+      closeDlg(); render();
+    }catch(e){ alert(e.message); }
+  };
+  $("btnDel").onclick = ()=>{
+    if(editingIndex<0) return;
+    if(confirm("削除しますか？")){
+      data.splice(editingIndex,1);
+      closeDlg(); render();
+    }
+  };
+  $("btnSave").onclick = save;
+  $("btnReset").onclick = ()=>{
+    if(confirm("初期化しますか？（保存内容も消えます）")){
+      localStorage.removeItem(KEY);
+      data = sample();
+      render();
+      toast("初期化しました");
+    }
+  };
+  $("btnCSV").onclick = toCSV;
+  $("btnPrint").onclick = ()=> window.print();
+
+  ["q","cat","sort"].forEach(id=>$(id).addEventListener("input", render));
+  window.addEventListener("keydown", (e)=>{
+    if(e.key==="Escape" && $("dlg").open) closeDlg();
+  });
+
+  load(); render();
+
+  // Service Worker 登録（PWA/オフライン）
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("./sw.js");
+  }
+</script>
+</body>
+</html>
